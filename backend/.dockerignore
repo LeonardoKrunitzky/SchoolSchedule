@@ -1,0 +1,17 @@
+# Cache e compilados Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+
+# Ambientes e sistema
+.env
+.git/
+.DS_Store

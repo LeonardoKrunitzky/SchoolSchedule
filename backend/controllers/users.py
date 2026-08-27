@@ -43,14 +43,14 @@ class UserController:
         return user
 
     @staticmethod
-    async def process_delete_user(user_id: UUID, db: AsyncSession):
+    async def toggle_activation(user_id: UUID, db: AsyncSession):
         """
-        Process the deletion of a user.
+        Process the request to switch user activation state.
         """
-        success = await UserService.delete(user_id, db)
-        if not success:
+        user = await UserService.switch_user_activation_service(user_id, db)
+        if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        return {"detail": "User deleted successfully"}
+        return user
 
     @staticmethod
     async def process_login(credentials: UserLogin, db: AsyncSession):

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from uuid import UUID
 
 class UserBase(BaseModel):
     role: str
@@ -9,12 +10,24 @@ class UserBase(BaseModel):
     workload: int
     status: str
 
-class UserCreate(UserBase):
+class UserCreate(BaseModel):
+    role_id: UUID
+    registration: str
+    name: str
     password: str
+    period: Optional[str] = None
+    workload: Optional[int] = None
+    status: Optional[str] = "ACTIVE"
 
-class UserResponse(UserBase):
-    id: int
-    
+class UserResponse(BaseModel):
+    id: UUID
+    role_id: UUID
+    registration: str
+    name: str
+    period: Optional[str] = None
+    workload: Optional[int] = None
+    status: bool
+
     class Config:
         from_attributes = True
 

@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from uuid import UUID
@@ -11,12 +12,15 @@ class UserService:
         """
         Create a new user with a hashed password in the database.
         """
-        # Verifica se a matrícula já existe
         result = await db.execute(select(User).where(User.registration == user_data.registration))
         if result.scalars().first():
             return None
         
-        db_user = User(**user_data.model_dump(exclude={"password"}))
+        user_dict = user_data.model_dump(exclude={"password"})
+        
+        user_dict["status"] = True 
+        
+        db_user = User(**user_dict)
         db_user.password_hash = get_password_hash(user_data.password)
         
         db.add(db_user)
@@ -62,17 +66,22 @@ class UserService:
         return db_user
 
     @staticmethod
-    async def delete(user_id: UUID, db: AsyncSession) -> bool:
+    async def switch_user_activation_service(user_id: UUID, db: AsyncSession) -> User | None:
         """
-        Delete a user from the database.
+        Toggle the activation state of a user in the database.
         """
-        db_user = await UserService.get_by_id(user_id, db)
-        if not db_user:
-            return False
-            
-        await db.delete(db_user)
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalars().first()
+        
+        if not user:
+            return None
+                
+        # Mudança de is_active para status conforme a coluna real do banco
+        user.status = not user.status
+        
         await db.commit()
-        return True
+        await db.refresh(user)
+        return user
 
     @staticmethod
     async def authenticate(registration: str, password: str, db: AsyncSession) -> User | None:

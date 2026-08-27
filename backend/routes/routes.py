@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from connections.database import get_db
-from schemas.users import UserCreate, UserResponse, UserLogin
+from schemas.users import UserCreate, UserResponse, UserLogin, UserUpdate
 from controllers.users import UserController
 from uuid import UUID
 
@@ -42,9 +42,12 @@ async def update_user(user_id: UUID, user: UserUpdate, db: AsyncSession = Depend
     """
     return await UserController.process_update_user(user_id, user, db)
 
-@router.delete("/{user_id}", status_code=204)
-async def delete_user(user_id: UUID, db: AsyncSession = Depends(get_db)):
+@router.patch("/{user_id}/toggle-status", response_model=UserResponse)
+async def toggle_user_activation_route(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db)
+):
     """
-    Route to delete a user by their ID.
+    Toggle a user's activation status (true/false).
     """
-    return await UserController.process_delete_user(user_id, db)
+    return await UserController.toggle_activation(user_id, db)

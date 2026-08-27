@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 
 class UserBase(BaseModel):
     role: str
@@ -20,3 +21,10 @@ class UserResponse(UserBase):
 class UserLogin(BaseModel):
     registration: str
     password: str
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    password: Optional[str] = None
+    period: Optional[str] = None
+    workload: Optional[int] = None
+    status: Optional[str] = None

@@ -1,37 +1,66 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from schemas.users import UserCreate, UserLogin
+from uuid import UUID
+from schemas.users import UserCreate, UserUpdate, UserLogin
 from services.users import UserService
 
 class UserController:
     @staticmethod
-    async def process_create_user(user: UserCreate, db: AsyncSession):
+    async def process_create_user(user_data: UserCreate, db: AsyncSession):
         """
-        Process business logic for user creation.
+        Process the creation of a new user.
         """
-        data = user.model_dump()
-        return await UserService.save_user(db=db, user_data=data)
+        user = await UserService.create(user_data, db)
+        if not user:
+            raise HTTPException(status_code=400, detail="Registration already registered")
+        return user
 
     @staticmethod
     async def process_get_users(db: AsyncSession):
         """
-        Handle logic for retrieving all users.
+        Process the retrieval of all users.
         """
-        return await UserService.get_all_users(db)
+        return await UserService.get_all(db)
+
+    @staticmethod
+    async def process_get_user(user_id: UUID, db: AsyncSession):
+        """
+        Process the retrieval of a specific user by ID.
+        """
+        user = await UserService.get_by_id(user_id, db)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+
+    @staticmethod
+    async def process_update_user(user_id: UUID, user_data: UserUpdate, db: AsyncSession):
+        """
+        Process the update of user information.
+        """
+        user = await UserService.update(user_id, user_data, db)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+
+    @staticmethod
+    async def process_delete_user(user_id: UUID, db: AsyncSession):
+        """
+        Process the deletion of a user.
+        """
+        success = await UserService.delete(user_id, db)
+        if not success:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"detail": "User deleted successfully"}
 
     @staticmethod
     async def process_login(credentials: UserLogin, db: AsyncSession):
         """
-        Process user login authentication.
+        Process user authentication.
         """
-        user = await UserService.get_user_by_registration(
-            db=db, registration=credentials.registration.upper()
-        )
-        
-        if not user or user.password != credentials.password:
+        user = await UserService.authenticate(credentials.registration, credentials.password, db)
+        if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid credentials"
+                detail="Incorrect registration or password"
             )
-            
-        return {"message": "Login successful", "user_id": user.id, "role": user.role}
+        return {"message": "Login successful", "user": user}

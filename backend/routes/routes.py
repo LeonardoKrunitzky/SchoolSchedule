@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from connections.database import get_db
 from schemas.users import UserCreate, UserResponse, UserLogin
 from controllers.users import UserController
+from uuid import UUID
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -26,3 +27,24 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
     Route to authenticate a user.
     """
     return await UserController.process_login(credentials, db)
+
+@router.get("/{user_id}", response_model=UserResponse)
+async def get_user(user_id: UUID, db: AsyncSession = Depends(get_db)):
+    """
+    Route to retrieve a user by their ID.
+    """
+    return await UserController.process_get_user(user_id, db)
+
+@router.put("/{user_id}", response_model=UserResponse)
+async def update_user(user_id: UUID, user: UserUpdate, db: AsyncSession = Depends(get_db)):
+    """
+    Route to update an existing user.
+    """
+    return await UserController.process_update_user(user_id, user, db)
+
+@router.delete("/{user_id}", status_code=204)
+async def delete_user(user_id: UUID, db: AsyncSession = Depends(get_db)):
+    """
+    Route to delete a user by their ID.
+    """
+    return await UserController.process_delete_user(user_id, db)

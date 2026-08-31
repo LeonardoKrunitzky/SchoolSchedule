@@ -1,9 +1,6 @@
 VENV = venv
 UVICORN = $(VENV)/bin/uvicorn
 
-setup:
-	uv venv $(VENV)
-
 install: setup
 	uv pip install --python $(VENV) "fastapi[all]" sqlalchemy asyncpg python-dotenv passlib bcrypt
 

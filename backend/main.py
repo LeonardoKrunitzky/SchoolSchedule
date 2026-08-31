@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from connections.database import engine, Base
-from routes.routes import router
-import entities.users 
+from routes.users import router as router_user
+from routes.roles import router as router_role
+from fastapi.middleware.cors import CORSMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -14,5 +15,13 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="School API", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-app.include_router(router)
+app.include_router(router_user)
+app.include_router(router_role)

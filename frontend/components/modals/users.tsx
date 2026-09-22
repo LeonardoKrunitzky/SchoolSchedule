@@ -1,10 +1,5 @@
 import Swal from 'sweetalert2';
 
-/**
- * Displays the modal to create a new user and captures the input data.
- * @param roles - Array of role objects fetched from the API.
- * @returns A promise resolving to the SweetAlert result with the user data.
- */
 export const showCreateUserModal = async (roles: any[]) => {
   return Swal.fire({
     title: 'Novo Usuário',
@@ -44,7 +39,7 @@ export const showCreateUserModal = async (roles: any[]) => {
           color: #111;
         }
         .custom-radio-label input {
-          display: none; /* Esconde o botão original para ficar mais clean */
+          display: none;
         }
         .section-title {
           text-align: left;

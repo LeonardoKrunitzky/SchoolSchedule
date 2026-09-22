@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from uuid import UUID
+from typing import Optional
 from entities.users import User
 from schemas.users import UserCreate, UserUpdate
 from utils.security import get_password_hash, verify_password
@@ -29,11 +30,21 @@ class UserService:
         return db_user
 
     @staticmethod
-    async def get_all(db: AsyncSession) -> list[User]:
+    async def get_all(
+        db: AsyncSession,
+        role_id: Optional[UUID] = None,
+        status: Optional[bool] = None,
+    ) -> list[User]:
         """
-        Retrieve all users from the database.
+        Retrieve users from the database, optionally filtered by role or status.
         """
-        result = await db.execute(select(User))
+        query = select(User)
+        if role_id is not None:
+            query = query.where(User.role_id == role_id)
+        if status is not None:
+            query = query.where(User.status == status)
+
+        result = await db.execute(query)
         return list(result.scalars().all())
 
     @staticmethod
@@ -82,6 +93,19 @@ class UserService:
         await db.commit()
         await db.refresh(user)
         return user
+
+    @staticmethod
+    async def delete(user_id: UUID, db: AsyncSession) -> bool:
+        """
+        Delete a user from the database.
+        """
+        db_user = await UserService.get_by_id(user_id, db)
+        if not db_user:
+            return False
+
+        await db.delete(db_user)
+        await db.commit()
+        return True
 
     @staticmethod
     async def authenticate(registration: str, password: str, db: AsyncSession) -> User | None:

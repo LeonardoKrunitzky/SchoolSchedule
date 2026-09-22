@@ -35,6 +35,11 @@ class UserLogin(BaseModel):
     registration: str
     password: str
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     password: Optional[str] = None

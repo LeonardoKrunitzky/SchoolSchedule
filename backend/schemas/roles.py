@@ -1,5 +1,18 @@
 from pydantic import BaseModel
+from typing import Optional
 from uuid import UUID
+
+class RoleCreate(BaseModel):
+    """
+    Schema for creating a new role.
+    """
+    name: str
+
+class RoleUpdate(BaseModel):
+    """
+    Schema for updating an existing role.
+    """
+    name: Optional[str] = None
 
 class RoleResponse(BaseModel):
     """

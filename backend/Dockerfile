@@ -9,7 +9,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 COPY . .
 
 # Instala as dependências globalmente no container usando o uv
-RUN uv pip install --system "fastapi[all]" sqlalchemy asyncpg python-dotenv passlib bcrypt
+RUN uv pip install --system "fastapi[all]" sqlalchemy asyncpg python-dotenv passlib bcrypt pyjwt
 
 EXPOSE 8000
 

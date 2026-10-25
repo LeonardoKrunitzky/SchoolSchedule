@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from connections.database import engine, Base
+from entities import users, classes, fixed_availability, horario, attendance_record  # noqa: F401 (register tables)
 from routes.users import router as router_user
 from routes.roles import router as router_role
 from fastapi.middleware.cors import CORSMiddleware

@@ -1,16 +1,16 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
 
-# Baixa e instala o uv rapidamente
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
 
-# Copia o código da aplicação
 COPY . .
 
-# Instala as dependências globalmente no container usando o uv
-RUN uv pip install --system "fastapi[all]" sqlalchemy asyncpg python-dotenv passlib bcrypt pyjwt
+ENV PYTHONPATH="/app:/app/src"
+ENV PATH="/app/.venv/bin:$PATH"
 
-EXPOSE 8000
+EXPOSE 8080
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "src.routes.server:app", "--host", "0.0.0.0", "--port", "8080"]

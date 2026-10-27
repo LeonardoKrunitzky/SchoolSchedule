@@ -17,7 +17,7 @@ class UserCreate(BaseModel):
     password: str
     period: Optional[str] = None
     workload: Optional[int] = None
-    status: Optional[str] = "ACTIVE"
+    status: Optional[bool] = True
 
 class UserResponse(BaseModel):
     id: UUID
@@ -45,4 +45,4 @@ class UserUpdate(BaseModel):
     password: Optional[str] = None
     period: Optional[str] = None
     workload: Optional[int] = None
-    status: Optional[str] = None
+    status: Optional[bool] = None

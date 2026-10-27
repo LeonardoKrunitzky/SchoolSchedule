@@ -13,7 +13,6 @@ export default function Navbar() {
         <li><Link href="/"><AiFillHome className="nav-icon" />Início</Link></li>
         <li><Link href="/users"><FaUsers className="nav-icon" />Funcionários</Link></li>
         <li><Link href="/schedule"><MdCalendarToday className="nav-icon" />Cronograma</Link></li>
-        <li><Link href="/schedule2"><BsCalendar2 className="nav-icon" />Cronograma 2</Link></li>
       </ul>
     </nav>
   );

@@ -18,7 +18,12 @@ export default function Login() {
     try {
       const response = await login(data);
 
-      const token = response?.token || 'autenticado';
+      const token = response?.access_token;
+
+      if (!token) {
+        throw new Error('Token não encontrado na resposta');
+      }
+
       document.cookie = `auth-token=${token}; path=/; max-age=86400`;
 
       Swal.fire({

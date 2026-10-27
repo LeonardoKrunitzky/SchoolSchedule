@@ -3,31 +3,41 @@
 import React, { useState, useEffect } from "react";
 import "./schedule.css";
 import Navbar from "@/components/navbar/Navbar";
+import { getUsers } from "@/services/users";
+import {
+  getClasses,
+  getSchedules,
+  createSchedule,
+  updateSchedule,
+  deleteSchedule,
+  ClassRoom,
+  ScheduleRecord,
+} from "@/services/schedule";
 
-interface Teacher {
-  name: string;
-  color: string;
-}
-
-interface ScheduleItem {
+interface User {
   id: string;
-  teacherName: string;
-  time: string;
+  name: string;
 }
 
-const DIAS = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
-const TURMAS = ["A1", "B1", "C1", "C2", "C3", "D1", "D/E"];
-const TEACHERS_NAMES = [
-  "Gisele",
-  "Nedi",
-  "Fabi",
-  "Pri",
-  "Tielli",
-  "Leila",
-  "Dacsi",
-  "Marceli",
-  "Josiane",
-  "Tais",
+interface TeacherBlock {
+  id: string;
+  userId: string;
+  teacherName: string;
+  color: string;
+  classId: string;
+  rowId: string;
+  startCol: number;
+  durationCols: number;
+  timeText: string;
+  observacao?: string; // <-- Nova propriedade adicionada
+}
+
+const DIAS = [
+  { label: "Segunda", value: 1 },
+  { label: "Terça", value: 2 },
+  { label: "Quarta", value: 3 },
+  { label: "Quinta", value: 4 },
+  { label: "Sexta", value: 5 },
 ];
 
 const TIMES = [
@@ -58,214 +68,362 @@ const TIMES = [
   "18:00",
 ];
 
-export default function GradeEscolar() {
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [schedule, setSchedule] = useState<Record<string, ScheduleItem[]>>({});
-  const [editingData, setEditingData] = useState<{
-    item: ScheduleItem;
-    cellKey: string;
-  } | null>(null);
+function formatTime(timeStr: string): string {
+  if (timeStr.includes("T")) {
+    return timeStr.split("T")[1].substring(0, 5);
+  }
+  return timeStr.substring(0, 5);
+}
+
+export default function Schedule() {
+  const [activeDay, setActiveDay] = useState<number>(DIAS[0].value);
+  const [teachers, setTeachers] = useState<User[]>([]);
+  const [classes, setClasses] = useState<ClassRoom[]>([]);
+  const [teacherColors, setTeacherColors] = useState<Record<string, string>>(
+    {},
+  );
+  const [blocks, setBlocks] = useState<Record<number, TeacherBlock[]>>({});
+  const [editingBlock, setEditingBlock] = useState<TeacherBlock | null>(null);
+
+  const loadScheduleData = async () => {
+    try {
+      const [usersData, classesData, schedulesData] = await Promise.all([
+        getUsers(),
+        getClasses(),
+        getSchedules(),
+      ]);
+
+      setTeachers(usersData);
+      setClasses(classesData);
+
+      const colors: Record<string, string> = {};
+      usersData.forEach((u: User) => {
+        colors[u.id] = `hsl(${Math.floor(Math.random() * 360)}, 65%, 88%)`;
+      });
+      setTeacherColors(colors);
+
+      const userMap = new Map<string, string>(
+        usersData.map((u: User) => [u.id, u.name]),
+      );
+      const classMap = new Map<string, string>(
+        classesData.map((c: ClassRoom) => [c.id, c.name]),
+      );
+
+      const groupedBlocks: Record<number, TeacherBlock[]> = {};
+
+      schedulesData.forEach(
+        (item: ScheduleRecord & { observacao?: string }) => {
+          const start = formatTime(item.start_time);
+          const end = formatTime(item.end_time);
+          const startIndex = Math.max(0, TIMES.indexOf(start));
+          const endIndex = Math.max(startIndex + 1, TIMES.indexOf(end));
+
+          const safeTeacherName = userMap.get(item.user_id) ?? "Professor";
+          const safeRowId = classMap.get(item.class_id) ?? "";
+
+          const block: TeacherBlock = {
+            id: String(item.id),
+            userId: String(item.user_id),
+            teacherName: safeTeacherName,
+            color: colors[item.user_id] || "#e2e8f0",
+            classId: String(item.class_id),
+            rowId: safeRowId,
+            startCol: startIndex + 1,
+            durationCols: endIndex - startIndex,
+            timeText: `${start} às ${end}`,
+            observacao: item.observacao || "", // <-- Resgata do banco caso exista
+          };
+
+          if (!groupedBlocks[item.weekday]) {
+            groupedBlocks[item.weekday] = [];
+          }
+          groupedBlocks[item.weekday].push(block);
+        },
+      );
+
+      setBlocks(groupedBlocks);
+    } catch (error) {
+      console.error("Failed to load schedule data:", error);
+    }
+  };
 
   useEffect(() => {
-    const generatedTeachers = TEACHERS_NAMES.map((name) => ({
-      name,
-      color: `hsl(${Math.floor(Math.random() * 360)}, 65%, 85%)`,
-    }));
-    setTeachers(generatedTeachers);
+    loadScheduleData();
   }, []);
 
-  const handleSidebarDragStart = (e: React.DragEvent, teacherName: string) => {
+  const handleSidebarDragStart = (e: React.DragEvent, teacher: User) => {
     e.dataTransfer.setData("source", "sidebar");
-    e.dataTransfer.setData("teacherName", teacherName);
+    e.dataTransfer.setData("userId", String(teacher.id));
+    e.dataTransfer.setData("teacherName", String(teacher.name));
   };
 
-  const handleGridDragStart = (
-    e: React.DragEvent,
-    sourceKey: string,
-    itemId: string,
-  ) => {
+  const handleGridDragStart = (e: React.DragEvent, blockId: string) => {
     e.dataTransfer.setData("source", "grid");
-    e.dataTransfer.setData("sourceKey", sourceKey);
-    e.dataTransfer.setData("itemId", itemId);
+    e.dataTransfer.setData("blockId", String(blockId));
   };
 
-  const handleDragOver = (e: React.DragEvent) => e.preventDefault();
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
 
-  const handleDrop = (e: React.DragEvent, targetKey: string) => {
+  const handleDrop = async (
+    e: React.DragEvent,
+    turma: ClassRoom,
+    colIndex: number,
+  ) => {
     e.preventDefault();
     const source = e.dataTransfer.getData("source");
 
     if (source === "sidebar") {
+      const userId = e.dataTransfer.getData("userId");
       const teacherName = e.dataTransfer.getData("teacherName");
-      if (!teacherName) return;
 
-      setSchedule((prev) => ({
-        ...prev,
-        [targetKey]: [
-          ...(prev[targetKey] || []),
-          {
-            id: Math.random().toString(36).substr(2, 9),
-            teacherName,
-            time: "07:30 às 09:30",
-          },
-        ],
-      }));
+      if (!userId || !teacherName) return;
+
+      const startTime = TIMES[colIndex] || "07:00";
+      const endTime =
+        TIMES[Math.min(colIndex + 4, TIMES.length - 1)] || "09:00";
+
+      try {
+        const created = await createSchedule({
+          user_id: userId,
+          class_id: turma.id,
+          weekday: activeDay,
+          start_time: startTime,
+          end_time: endTime,
+        });
+
+        const newBlock: TeacherBlock = {
+          id: String(created.id),
+          userId,
+          teacherName,
+          color: teacherColors[userId] || "#e2e8f0",
+          classId: turma.id,
+          rowId: turma.name,
+          startCol: colIndex + 1,
+          durationCols: 4,
+          timeText: `${startTime} às ${endTime}`,
+          observacao: "", // <-- Inicia vazio
+        };
+
+        setBlocks((prev) => ({
+          ...prev,
+          [activeDay]: [...(prev[activeDay] || []), newBlock],
+        }));
+      } catch (error) {
+        console.error("Failed to create schedule block:", error);
+      }
     } else if (source === "grid") {
-      const sourceKey = e.dataTransfer.getData("sourceKey");
-      const itemId = e.dataTransfer.getData("itemId");
-      if (!sourceKey || !itemId) return;
+      const blockId = e.dataTransfer.getData("blockId");
+      const dayBlocks = blocks[activeDay] || [];
+      const block = dayBlocks.find((b) => b.id === blockId);
 
-      setSchedule((prev) => {
-        const newSchedule = { ...prev };
-        let movedItem: ScheduleItem | undefined;
+      if (!block) return;
 
-        // Remove do local original
-        if (newSchedule[sourceKey]) {
-          movedItem = newSchedule[sourceKey].find((i) => i.id === itemId);
-          newSchedule[sourceKey] = newSchedule[sourceKey].filter(
-            (i) => i.id !== itemId,
-          );
-        }
+      const newStartCol = colIndex + 1;
+      const startTime = TIMES[colIndex] || "07:00";
+      const endIndex = Math.min(
+        colIndex + block.durationCols,
+        TIMES.length - 1,
+      );
+      const endTime = TIMES[endIndex] || "09:00";
 
-        // Adiciona no novo local
-        if (movedItem) {
-          if (!newSchedule[targetKey]) newSchedule[targetKey] = [];
-          newSchedule[targetKey] = [...newSchedule[targetKey], movedItem];
-        }
+      try {
+        await updateSchedule(blockId, {
+          user_id: block.userId,
+          class_id: turma.id,
+          weekday: activeDay,
+          start_time: startTime,
+          end_time: endTime,
+        });
 
-        return newSchedule;
-      });
+        setBlocks((prev) => ({
+          ...prev,
+          [activeDay]: (prev[activeDay] || []).map((b) =>
+            b.id === blockId
+              ? {
+                  ...b,
+                  classId: turma.id,
+                  rowId: turma.name,
+                  startCol: newStartCol,
+                  timeText: `${startTime} às ${endTime}`,
+                }
+              : b,
+          ),
+        }));
+      } catch (error) {
+        console.error("Failed to move schedule block:", error);
+      }
     }
   };
 
-  const getTeacherColor = (name: string) =>
-    teachers.find((t) => t.name === name)?.color || "#eee";
-
-  // Modal Actions
-  const saveEdit = () => {
-    if (!editingData) return;
-    const { item, cellKey } = editingData;
+  const saveEdit = async () => {
+    if (!editingBlock) return;
 
     const startSelect = document.getElementById(
       "edit-start",
     ) as HTMLSelectElement;
     const endSelect = document.getElementById("edit-end") as HTMLSelectElement;
+    const obsTextarea = document.getElementById(
+      "edit-obs",
+    ) as HTMLTextAreaElement; // <-- Captura a observação
 
-    if (TIMES.indexOf(startSelect.value) >= TIMES.indexOf(endSelect.value)) {
-      alert("O horário de término deve ser posterior ao início.");
+    const startIndex = TIMES.indexOf(startSelect.value);
+    const endIndex = TIMES.indexOf(endSelect.value);
+    const newObservacao = obsTextarea ? obsTextarea.value : "";
+
+    if (startIndex >= endIndex) {
+      alert("O horário de fim deve ser depois do início.");
       return;
     }
 
-    const newTime = `${startSelect.value} às ${endSelect.value}`;
+    try {
+      await updateSchedule(editingBlock.id, {
+        user_id: editingBlock.userId,
+        class_id: editingBlock.classId,
+        weekday: activeDay,
+        start_time: startSelect.value,
+        end_time: endSelect.value,
+        observacao: newObservacao, // <-- Envia para a API (certifique-se que seu backend aceite essa prop)
+      });
 
-    setSchedule((prev) => {
-      const newSchedule = { ...prev };
-      if (newSchedule[cellKey]) {
-        newSchedule[cellKey] = newSchedule[cellKey].map((i) =>
-          i.id === item.id ? { ...i, time: newTime } : i,
-        );
-      }
-      return newSchedule;
-    });
-
-    setEditingData(null);
+      setBlocks((prev) => ({
+        ...prev,
+        [activeDay]: (prev[activeDay] || []).map((b) =>
+          b.id === editingBlock.id
+            ? {
+                ...b,
+                startCol: startIndex + 1,
+                durationCols: endIndex - startIndex,
+                timeText: `${startSelect.value} às ${endSelect.value}`,
+                observacao: newObservacao, // <-- Atualiza o estado local
+              }
+            : b,
+        ),
+      }));
+      setEditingBlock(null);
+    } catch (error) {
+      console.error("Failed to update schedule block:", error);
+    }
   };
 
-  const deleteItem = () => {
-    if (!editingData) return;
-    const { item, cellKey } = editingData;
+  const deleteBlock = async () => {
+    if (!editingBlock) return;
 
-    setSchedule((prev) => {
-      const newSchedule = { ...prev };
-      if (newSchedule[cellKey]) {
-        newSchedule[cellKey] = newSchedule[cellKey].filter(
-          (i) => i.id !== item.id,
-        );
-      }
-      return newSchedule;
-    });
-    setEditingData(null);
+    try {
+      await deleteSchedule(editingBlock.id);
+
+      setBlocks((prev) => ({
+        ...prev,
+        [activeDay]: (prev[activeDay] || []).filter(
+          (b) => b.id !== editingBlock.id,
+        ),
+      }));
+      setEditingBlock(null);
+    } catch (error) {
+      console.error("Failed to delete schedule block:", error);
+    }
   };
+
+  const currentDayBlocks = blocks[activeDay] || [];
+  const activeDayLabel = DIAS.find((d) => d.value === activeDay)?.label || "";
 
   return (
     <div className="app-wrapper">
       <Navbar />
-      <div className="layout-container">
-        <aside className="teachers-sidebar">
-          <h2>Educadores</h2>
-          <p className="subtitle">Arraste para a grade</p>
-          <div className="teachers-list">
-            {teachers.map((teacher) => (
-              <div
-                key={teacher.name}
-                draggable
-                onDragStart={(e) => handleSidebarDragStart(e, teacher.name)}
-                className="teacher-pill"
-                style={{ backgroundColor: teacher.color }}
+      <div className="layout-wrapper">
+        <main className="gantt-main">
+          <div className="tabs">
+            {DIAS.map((dia) => (
+              <button
+                key={dia.value}
+                className={`tab-btn ${activeDay === dia.value ? "active" : ""}`}
+                onClick={() => setActiveDay(dia.value)}
               >
-                {teacher.name}
+                {dia.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="gantt-board">
+            <div className="gantt-header">
+              <div className="gantt-corner">Turmas</div>
+              <div className="gantt-times">
+                {TIMES.slice(0, -1).map((t) => (
+                  <div key={t} className="time-cell">
+                    {t}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="gantt-body">
+              {classes.map((turma) => (
+                <div key={turma.id} className="gantt-row">
+                  <div className="row-label">{turma.name}</div>
+                  <div className="row-grid">
+                    {TIMES.slice(0, -1).map((_, idx) => (
+                      <div
+                        key={idx}
+                        className="drop-cell"
+                        style={{ gridColumn: idx + 1 }}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, turma, idx)}
+                      />
+                    ))}
+
+                    {currentDayBlocks
+                      .filter((b) => b.classId === turma.id)
+                      .map((block) => (
+                        <div
+                          key={block.id}
+                          className="gantt-block"
+                          draggable
+                          onDragStart={(e) => handleGridDragStart(e, block.id)}
+                          onClick={() => setEditingBlock(block)}
+                          style={{
+                            backgroundColor: block.color,
+                            gridColumn: `${block.startCol} / span ${block.durationCols}`,
+                          }}
+                        >
+                          <strong>{block.teacherName}</strong>
+                          <span>{block.timeText}</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
+
+        <aside className="bottom-panel">
+          <h3>Educadores</h3>
+          <p>
+            Arraste o nome do professor para a grade. Clique em um bloco na
+            grade para editar o horário ou removê-lo.
+          </p>
+          <div className="teachers-list">
+            {teachers.map((t) => (
+              <div
+                key={t.id}
+                draggable
+                onDragStart={(e) => handleSidebarDragStart(e, t)}
+                className="teacher-pill"
+                style={{ backgroundColor: teacherColors[t.id] || "#eee" }}
+              >
+                {t.name}
               </div>
             ))}
           </div>
         </aside>
 
-        <main className="schedule-main">
-          <div className="grid-container">
-            <div className="grid-header-empty">Turmas</div>
-            {DIAS.map((dia) => (
-              <div key={dia} className="grid-header">
-                {dia}
-              </div>
-            ))}
-
-            {TURMAS.map((turma) => (
-              <React.Fragment key={turma}>
-                <div className="grid-row-title">{turma}</div>
-
-                {DIAS.map((dia) => {
-                  const cellKey = `${turma}-${dia}`;
-                  const items = schedule[cellKey] || [];
-
-                  return (
-                    <div
-                      key={cellKey}
-                      className="grid-cell dropzone"
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDrop(e, cellKey)}
-                    >
-                      {items.map((item) => (
-                        <div
-                          key={item.id}
-                          draggable
-                          onDragStart={(e) =>
-                            handleGridDragStart(e, cellKey, item.id)
-                          }
-                          onClick={() => setEditingData({ item, cellKey })}
-                          className="schedule-card"
-                          style={{
-                            backgroundColor: getTeacherColor(item.teacherName),
-                          }}
-                        >
-                          <strong>{item.teacherName}</strong>
-                          <span>{item.time}</span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </React.Fragment>
-            ))}
-          </div>
-        </main>
-
-        {/* Modal de Edição (Redimensionar / Remover) */}
-        {editingData && (
-          <div className="modal-overlay" onClick={() => setEditingData(null)}>
+        {editingBlock && (
+          <div className="modal-overlay" onClick={() => setEditingBlock(null)}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <h3>Editar Aula: {editingData.item.teacherName}</h3>
+              <h3>Editar Aula: {editingBlock.teacherName}</h3>
               <p className="modal-subtitle">
-                {editingData.cellKey.split("-")[0]} -{" "}
-                {editingData.cellKey.split("-")[1]}
+                Turma {editingBlock.rowId} - {activeDayLabel}
               </p>
 
               <div className="modal-form">
@@ -273,7 +431,7 @@ export default function GradeEscolar() {
                   <label>Início</label>
                   <select
                     id="edit-start"
-                    defaultValue={editingData.item.time.split(" às ")[0]}
+                    defaultValue={editingBlock.timeText.split(" às ")[0]}
                   >
                     {TIMES.slice(0, -1).map((t) => (
                       <option key={t} value={t}>
@@ -286,9 +444,7 @@ export default function GradeEscolar() {
                   <label>Fim</label>
                   <select
                     id="edit-end"
-                    defaultValue={
-                      editingData.item.time.split(" às ")[1] || "09:30"
-                    }
+                    defaultValue={editingBlock.timeText.split(" às ")[1]}
                   >
                     {TIMES.slice(1).map((t) => (
                       <option key={t} value={t}>
@@ -297,16 +453,26 @@ export default function GradeEscolar() {
                     ))}
                   </select>
                 </div>
+
+                <div className="input-group full-width">
+                  <label>Observação (Opcional)</label>
+                  <textarea
+                    id="edit-obs"
+                    defaultValue={editingBlock.observacao}
+                    placeholder="Ex: Trazer material para laboratório..."
+                    rows={3}
+                  />
+                </div>
               </div>
 
               <div className="modal-actions">
-                <button className="btn-delete" onClick={deleteItem}>
+                <button className="btn-delete" onClick={deleteBlock}>
                   Remover da Grade
                 </button>
                 <div className="modal-actions-right">
                   <button
                     className="btn-cancel"
-                    onClick={() => setEditingData(null)}
+                    onClick={() => setEditingBlock(null)}
                   >
                     Cancelar
                   </button>

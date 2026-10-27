@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from uuid import UUID
-from entities.classes import Class
+from entities.classes import SchoolClass
 from schemas.classes import ClassCreate, ClassUpdate
 
 class ClassService:
@@ -9,34 +9,34 @@ class ClassService:
     Service layer for Class business logic and database access.
     """
     @staticmethod
-    async def create(class_data: ClassCreate, db: AsyncSession) -> Class:
+    async def create(class_data: ClassCreate, db: AsyncSession) -> SchoolClass:
         """
         Create a new class in the database.
         """
-        db_class = Class(**class_data.model_dump())
+        db_class = SchoolClass(**class_data.model_dump())
         db.add(db_class)
         await db.commit()
         await db.refresh(db_class)
         return db_class
 
     @staticmethod
-    async def get_all(db: AsyncSession) -> list[Class]:
+    async def get_all(db: AsyncSession) -> list[SchoolClass]:
         """
         Retrieve all classes from the database.
         """
-        result = await db.execute(select(Class))
+        result = await db.execute(select(SchoolClass))
         return list(result.scalars().all())
 
     @staticmethod
-    async def get_by_id(class_id: UUID, db: AsyncSession) -> Class | None:
+    async def get_by_id(class_id: UUID, db: AsyncSession) -> SchoolClass | None:
         """
         Retrieve a class by ID from the database.
         """
-        result = await db.execute(select(Class).where(Class.id == class_id))
+        result = await db.execute(select(SchoolClass).where(SchoolClass.id == class_id))
         return result.scalars().first()
 
     @staticmethod
-    async def update(class_id: UUID, class_data: ClassUpdate, db: AsyncSession) -> Class | None:
+    async def update(class_id: UUID, class_data: ClassUpdate, db: AsyncSession) -> SchoolClass | None:
         """
         Update an existing class in the database.
         """

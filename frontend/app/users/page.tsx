@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
-import styles from './users.module.css';
+import './users.css';
 import { showCreateUserModal, showEditUserModal } from '@/components/modals/users';
 import Navbar from '@/components/navbar/Navbar';
 import { getUsers, getRoles, createUser, updateUser, toggleUserStatus } from '@/services/users';
@@ -65,16 +65,16 @@ export default function Users() {
   };
 
   return (
-    <main className={styles.page}>
+    <main className="page">
       <Navbar />
-      <div className={styles.container}>
-        <div className={styles.header}>
+      <div className="container">
+        <div className="header">
           <h2>Gestão de Professores</h2>
-          <button className={styles.createBtn} onClick={handleCreate}>+ Novo Professor</button>
+          <button className="createBtn" onClick={handleCreate}>+ Novo Professor</button>
         </div>
-        
-        <div className={styles.tableWrapper}>
-          <table className={styles.table}>
+
+        <div className="tableWrapper">
+          <table className="table">
             <thead>
               <tr>
                 <th>Nome</th>
@@ -91,13 +91,13 @@ export default function Users() {
                   <td>{user.registration}</td>
                   <td>{user.period || '-'}</td>
                   <td>
-                    <span className={user.status ? styles.active : styles.inactive}>
+                    <span className={user.status ? 'active' : 'inactive'}>
                       {user.status ? 'Ativo' : 'Inativo'}
                     </span>
                   </td>
-                  <td className={styles.actions}>
-                    <button onClick={() => handleEdit(user)} className={styles.editBtn}>Editar</button>
-                    <button onClick={() => handleToggleStatus(user.id)} className={styles.toggleBtn}>Ativar/Desativar</button>
+                  <td className="actions">
+                    <button onClick={() => handleEdit(user)} className="editBtn">Editar</button>
+                    <button onClick={() => handleToggleStatus(user.id)} className="toggleBtn">Ativar/Desativar</button>
                   </td>
                 </tr>
               ))}

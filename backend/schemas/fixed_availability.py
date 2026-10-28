@@ -12,7 +12,8 @@ class FixedAvailabilityCreate(BaseModel):
     weekday: int = Field(..., ge=1, le=7, description="1=Monday ... 7=Sunday")
     start_time: time
     end_time: time
-    observacao: Optional[str] = None
+    observation: Optional[str] = None
+    is_fixed: Optional[bool] = True
 
 class FixedAvailabilityUpdate(BaseModel):
     """
@@ -23,7 +24,8 @@ class FixedAvailabilityUpdate(BaseModel):
     weekday: Optional[int] = Field(None, ge=1, le=7)
     start_time: Optional[time] = None
     end_time: Optional[time] = None
-    observacao: Optional[str] = None
+    observation: Optional[str] = None
+    is_fixed: Optional[bool] = None
 
 class FixedAvailabilityResponse(BaseModel):
     """
@@ -35,7 +37,8 @@ class FixedAvailabilityResponse(BaseModel):
     weekday: int
     start_time: time
     end_time: time
-    observacao: Optional[str] = None
+    observation: Optional[str] = None
+    is_fixed: Optional[bool] = None
 
     class Config:
         from_attributes = True

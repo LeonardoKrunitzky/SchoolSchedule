@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, SmallInteger, Time, ForeignKey, CheckConstraint, text
+from sqlalchemy import Column, String, Boolean, SmallInteger, Time, ForeignKey, CheckConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from connections.database import Base
@@ -16,4 +16,5 @@ class FixedAvailability(Base):
     weekday = Column(SmallInteger, nullable=False)
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
-    observacao = Column(String(255), nullable=True)
+    observation = Column(String(255), nullable=True)
+    is_fixed = Column(Boolean, nullable=True, default=True, server_default=text("true"))

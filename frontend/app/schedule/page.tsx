@@ -89,7 +89,7 @@ export default function Schedule() {
 
       const groupedBlocks: Record<number, TeacherBlock[]> = {};
 
-      schedulesData.forEach((item: ScheduleRecord & { observacao?: string }) => {
+      schedulesData.forEach((item: ScheduleRecord) => {
         const start = formatTime(item.start_time);
         const end = formatTime(item.end_time);
         const startIndex = Math.max(0, TIMES.indexOf(start));
@@ -108,7 +108,7 @@ export default function Schedule() {
           startCol: startIndex + 1,
           durationCols: endIndex - startIndex,
           timeText: `${start} às ${end}`,
-          observacao: item.observacao || "",
+          observacao: item.observation || "",
         };
 
         if (!groupedBlocks[item.weekday]) {
@@ -287,7 +287,7 @@ export default function Schedule() {
         weekday: activeDay,
         start_time: startSelect.value,
         end_time: endSelect.value,
-        observacao: newObservacao,
+        observation: newObservacao,
       });
 
       setBlocks((prev) => ({

@@ -12,7 +12,8 @@ export interface ScheduleRecord {
   weekday: number;
   start_time: string;
   end_time: string;
-  observacao?: string;
+  observation?: string;
+  is_fixed?: boolean;
 }
 
 export interface CreateScheduleDTO {
@@ -21,7 +22,8 @@ export interface CreateScheduleDTO {
   weekday: number;
   start_time: string;
   end_time: string;
-  observacao?: string;
+  observation?: string;
+  is_fixed?: boolean;
 }
 
 /**

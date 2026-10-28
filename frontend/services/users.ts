@@ -1,30 +1,4 @@
-import axios from 'axios';
-
-export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
-});
-
-/**
- * Intercepts Axios requests to automatically attach the JWT Bearer token.
- * It reads the 'auth-token' from browser cookies and appends it to the Authorization header.
- * 
- * @param config - The Axios request configuration object.
- * @returns The modified Axios request configuration.
- */
-api.interceptors.request.use(
-  (config) => {
-    if (typeof document !== 'undefined') {
-      const match = document.cookie.match(new RegExp('(^| )auth-token=([^;]+)'));
-      if (match && match[2]) {
-        config.headers.Authorization = `Bearer ${match[2]}`;
-      }
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+import { api } from './base';
 
 /**
  * Authenticates the user and returns the login response containing the token.

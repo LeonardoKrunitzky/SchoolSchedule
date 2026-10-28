@@ -4,8 +4,9 @@ import React, { useState, useEffect } from "react";
 import "./schedule.css";
 import Navbar from "@/components/navbar/Navbar";
 import { getUsers } from "@/services/users";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
-  getClasses,
   getSchedules,
   createSchedule,
   updateSchedule,
@@ -13,6 +14,7 @@ import {
   ClassRoom,
   ScheduleRecord,
 } from "@/services/schedule";
+import { getClasses } from "@/services/classes";
 
 interface User {
   id: string;
@@ -29,7 +31,7 @@ interface TeacherBlock {
   startCol: number;
   durationCols: number;
   timeText: string;
-  observacao?: string; // <-- Nova propriedade adicionada
+  observacao?: string;
 }
 
 const DIAS = [
@@ -41,31 +43,9 @@ const DIAS = [
 ];
 
 const TIMES = [
-  "06:00",
-  "06:30",
-  "07:00",
-  "07:30",
-  "08:00",
-  "08:30",
-  "09:00",
-  "09:30",
-  "10:00",
-  "10:30",
-  "11:00",
-  "11:30",
-  "12:00",
-  "12:30",
-  "13:00",
-  "13:30",
-  "14:00",
-  "14:30",
-  "15:00",
-  "15:30",
-  "16:00",
-  "16:30",
-  "17:00",
-  "17:30",
-  "18:00",
+  "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "09:30",
+  "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30",
+  "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00",
 ];
 
 function formatTime(timeStr: string): string {
@@ -79,9 +59,7 @@ export default function Schedule() {
   const [activeDay, setActiveDay] = useState<number>(DIAS[0].value);
   const [teachers, setTeachers] = useState<User[]>([]);
   const [classes, setClasses] = useState<ClassRoom[]>([]);
-  const [teacherColors, setTeacherColors] = useState<Record<string, string>>(
-    {},
-  );
+  const [teacherColors, setTeacherColors] = useState<Record<string, string>>({});
   const [blocks, setBlocks] = useState<Record<number, TeacherBlock[]>>({});
   const [editingBlock, setEditingBlock] = useState<TeacherBlock | null>(null);
 
@@ -103,43 +81,41 @@ export default function Schedule() {
       setTeacherColors(colors);
 
       const userMap = new Map<string, string>(
-        usersData.map((u: User) => [u.id, u.name]),
+        usersData.map((u: User) => [u.id, u.name])
       );
       const classMap = new Map<string, string>(
-        classesData.map((c: ClassRoom) => [c.id, c.name]),
+        classesData.map((c: ClassRoom) => [c.id, c.name])
       );
 
       const groupedBlocks: Record<number, TeacherBlock[]> = {};
 
-      schedulesData.forEach(
-        (item: ScheduleRecord & { observacao?: string }) => {
-          const start = formatTime(item.start_time);
-          const end = formatTime(item.end_time);
-          const startIndex = Math.max(0, TIMES.indexOf(start));
-          const endIndex = Math.max(startIndex + 1, TIMES.indexOf(end));
+      schedulesData.forEach((item: ScheduleRecord & { observacao?: string }) => {
+        const start = formatTime(item.start_time);
+        const end = formatTime(item.end_time);
+        const startIndex = Math.max(0, TIMES.indexOf(start));
+        const endIndex = Math.max(startIndex + 1, TIMES.indexOf(end));
 
-          const safeTeacherName = userMap.get(item.user_id) ?? "Professor";
-          const safeRowId = classMap.get(item.class_id) ?? "";
+        const safeTeacherName = userMap.get(item.user_id) ?? "Professor";
+        const safeRowId = classMap.get(item.class_id) ?? "";
 
-          const block: TeacherBlock = {
-            id: String(item.id),
-            userId: String(item.user_id),
-            teacherName: safeTeacherName,
-            color: colors[item.user_id] || "#e2e8f0",
-            classId: String(item.class_id),
-            rowId: safeRowId,
-            startCol: startIndex + 1,
-            durationCols: endIndex - startIndex,
-            timeText: `${start} às ${end}`,
-            observacao: item.observacao || "", // <-- Resgata do banco caso exista
-          };
+        const block: TeacherBlock = {
+          id: String(item.id),
+          userId: String(item.user_id),
+          teacherName: safeTeacherName,
+          color: colors[item.user_id] || "#e2e8f0",
+          classId: String(item.class_id),
+          rowId: safeRowId,
+          startCol: startIndex + 1,
+          durationCols: endIndex - startIndex,
+          timeText: `${start} às ${end}`,
+          observacao: item.observacao || "",
+        };
 
-          if (!groupedBlocks[item.weekday]) {
-            groupedBlocks[item.weekday] = [];
-          }
-          groupedBlocks[item.weekday].push(block);
-        },
-      );
+        if (!groupedBlocks[item.weekday]) {
+          groupedBlocks[item.weekday] = [];
+        }
+        groupedBlocks[item.weekday].push(block);
+      });
 
       setBlocks(groupedBlocks);
     } catch (error) {
@@ -150,6 +126,45 @@ export default function Schedule() {
   useEffect(() => {
     loadScheduleData();
   }, []);
+
+  const gerarRelatorioPDF = () => {
+    const doc = new jsPDF();
+    doc.text("Relatório Geral de Horários", 14, 15);
+
+    const tableCols = ["Dia", "Turma", "Professor", "Horário", "Observação"];
+    const tableData: any[][] = [];
+
+    DIAS.forEach((dia) => {
+      const aulasDoDia = blocks[dia.value] || [];
+      
+      // Ordena por turma e depois por horário
+      const aulasOrdenadas = [...aulasDoDia].sort((a, b) => {
+        if (a.rowId === b.rowId) return a.startCol - b.startCol;
+        return a.rowId.localeCompare(b.rowId);
+      });
+
+      aulasOrdenadas.forEach((aula) => {
+        tableData.push([
+          dia.label,
+          aula.rowId,
+          aula.teacherName,
+          aula.timeText,
+          aula.observacao || "-",
+        ]);
+      });
+    });
+
+    autoTable(doc, {
+      head: [tableCols],
+      body: tableData,
+      startY: 25,
+      theme: 'grid',
+      styles: { fontSize: 10, cellPadding: 3 },
+      headStyles: { fillColor: [41, 128, 185] },
+    });
+
+    doc.save("relatorio_horarios.pdf");
+  };
 
   const handleSidebarDragStart = (e: React.DragEvent, teacher: User) => {
     e.dataTransfer.setData("source", "sidebar");
@@ -166,11 +181,7 @@ export default function Schedule() {
     e.preventDefault();
   };
 
-  const handleDrop = async (
-    e: React.DragEvent,
-    turma: ClassRoom,
-    colIndex: number,
-  ) => {
+  const handleDrop = async (e: React.DragEvent, turma: ClassRoom, colIndex: number) => {
     e.preventDefault();
     const source = e.dataTransfer.getData("source");
 
@@ -181,8 +192,7 @@ export default function Schedule() {
       if (!userId || !teacherName) return;
 
       const startTime = TIMES[colIndex] || "07:00";
-      const endTime =
-        TIMES[Math.min(colIndex + 4, TIMES.length - 1)] || "09:00";
+      const endTime = TIMES[Math.min(colIndex + 4, TIMES.length - 1)] || "09:00";
 
       try {
         const created = await createSchedule({
@@ -203,7 +213,7 @@ export default function Schedule() {
           startCol: colIndex + 1,
           durationCols: 4,
           timeText: `${startTime} às ${endTime}`,
-          observacao: "", // <-- Inicia vazio
+          observacao: "",
         };
 
         setBlocks((prev) => ({
@@ -222,10 +232,7 @@ export default function Schedule() {
 
       const newStartCol = colIndex + 1;
       const startTime = TIMES[colIndex] || "07:00";
-      const endIndex = Math.min(
-        colIndex + block.durationCols,
-        TIMES.length - 1,
-      );
+      const endIndex = Math.min(colIndex + block.durationCols, TIMES.length - 1);
       const endTime = TIMES[endIndex] || "09:00";
 
       try {
@@ -248,7 +255,7 @@ export default function Schedule() {
                   startCol: newStartCol,
                   timeText: `${startTime} às ${endTime}`,
                 }
-              : b,
+              : b
           ),
         }));
       } catch (error) {
@@ -260,13 +267,9 @@ export default function Schedule() {
   const saveEdit = async () => {
     if (!editingBlock) return;
 
-    const startSelect = document.getElementById(
-      "edit-start",
-    ) as HTMLSelectElement;
+    const startSelect = document.getElementById("edit-start") as HTMLSelectElement;
     const endSelect = document.getElementById("edit-end") as HTMLSelectElement;
-    const obsTextarea = document.getElementById(
-      "edit-obs",
-    ) as HTMLTextAreaElement; // <-- Captura a observação
+    const obsTextarea = document.getElementById("edit-obs") as HTMLTextAreaElement;
 
     const startIndex = TIMES.indexOf(startSelect.value);
     const endIndex = TIMES.indexOf(endSelect.value);
@@ -284,7 +287,7 @@ export default function Schedule() {
         weekday: activeDay,
         start_time: startSelect.value,
         end_time: endSelect.value,
-        observacao: newObservacao, // <-- Envia para a API (certifique-se que seu backend aceite essa prop)
+        observacao: newObservacao,
       });
 
       setBlocks((prev) => ({
@@ -296,9 +299,9 @@ export default function Schedule() {
                 startCol: startIndex + 1,
                 durationCols: endIndex - startIndex,
                 timeText: `${startSelect.value} às ${endSelect.value}`,
-                observacao: newObservacao, // <-- Atualiza o estado local
+                observacao: newObservacao,
               }
-            : b,
+            : b
         ),
       }));
       setEditingBlock(null);
@@ -315,9 +318,7 @@ export default function Schedule() {
 
       setBlocks((prev) => ({
         ...prev,
-        [activeDay]: (prev[activeDay] || []).filter(
-          (b) => b.id !== editingBlock.id,
-        ),
+        [activeDay]: (prev[activeDay] || []).filter((b) => b.id !== editingBlock.id),
       }));
       setEditingBlock(null);
     } catch (error) {
@@ -333,16 +334,36 @@ export default function Schedule() {
       <Navbar />
       <div className="layout-wrapper">
         <main className="gantt-main">
-          <div className="tabs">
-            {DIAS.map((dia) => (
-              <button
-                key={dia.value}
-                className={`tab-btn ${activeDay === dia.value ? "active" : ""}`}
-                onClick={() => setActiveDay(dia.value)}
-              >
-                {dia.label}
-              </button>
-            ))}
+          
+          {/* Header com as abas e botão de PDF lado a lado */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+            <div className="tabs">
+              {DIAS.map((dia) => (
+                <button
+                  key={dia.value}
+                  className={`tab-btn ${activeDay === dia.value ? "active" : ""}`}
+                  onClick={() => setActiveDay(dia.value)}
+                >
+                  {dia.label}
+                </button>
+              ))}
+            </div>
+            
+            <button 
+              onClick={gerarRelatorioPDF} 
+              style={{
+                backgroundColor: "#2980b9",
+                color: "#fff",
+                border: "none",
+                padding: "8px 16px",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontWeight: "bold",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+              }}
+            >
+              📄 Gerar Relatório PDF
+            </button>
           </div>
 
           <div className="gantt-board">
@@ -400,8 +421,7 @@ export default function Schedule() {
         <aside className="bottom-panel">
           <h3>Educadores</h3>
           <p>
-            Arraste o nome do professor para a grade. Clique em um bloco na
-            grade para editar o horário ou removê-lo.
+            Arraste o nome do professor para a grade. Clique em um bloco na grade para editar o horário ou removê-lo.
           </p>
           <div className="teachers-list">
             {teachers.map((t) => (
@@ -429,27 +449,17 @@ export default function Schedule() {
               <div className="modal-form">
                 <div className="input-group">
                   <label>Início</label>
-                  <select
-                    id="edit-start"
-                    defaultValue={editingBlock.timeText.split(" às ")[0]}
-                  >
+                  <select id="edit-start" defaultValue={editingBlock.timeText.split(" às ")[0]}>
                     {TIMES.slice(0, -1).map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
+                      <option key={t} value={t}>{t}</option>
                     ))}
                   </select>
                 </div>
                 <div className="input-group">
                   <label>Fim</label>
-                  <select
-                    id="edit-end"
-                    defaultValue={editingBlock.timeText.split(" às ")[1]}
-                  >
+                  <select id="edit-end" defaultValue={editingBlock.timeText.split(" às ")[1]}>
                     {TIMES.slice(1).map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
+                      <option key={t} value={t}>{t}</option>
                     ))}
                   </select>
                 </div>
@@ -470,10 +480,7 @@ export default function Schedule() {
                   Remover da Grade
                 </button>
                 <div className="modal-actions-right">
-                  <button
-                    className="btn-cancel"
-                    onClick={() => setEditingBlock(null)}
-                  >
+                  <button className="btn-cancel" onClick={() => setEditingBlock(null)}>
                     Cancelar
                   </button>
                   <button className="btn-save" onClick={saveEdit}>

@@ -1,4 +1,4 @@
-import { api } from './users';
+import { api } from "./base";
 
 export interface ClassRoom {
   id: string;
@@ -22,16 +22,6 @@ export interface CreateScheduleDTO {
   start_time: string;
   end_time: string;
   observacao?: string;
-}
-
-/**
- * Retrieves a list of all classes from the API.
- * 
- * @returns A promise that resolves to an array of ClassRoom objects.
- */
-export async function getClasses(): Promise<ClassRoom[]> {
-  const response = await api.get<ClassRoom[]>('/classes');
-  return response.data;
 }
 
 /**

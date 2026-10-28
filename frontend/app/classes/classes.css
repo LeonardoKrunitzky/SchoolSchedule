@@ -1,0 +1,127 @@
+.page {
+  min-height: 100vh;
+  background-color: #fafafa;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.container {
+  max-width: 1000px;
+  margin: 3rem auto;
+  padding: 0 2rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.header h2 {
+  color: #111;
+  font-weight: 600;
+  margin: 0;
+}
+
+.createBtn {
+  background: #111;
+  color: #fff;
+  border: none;
+  padding: 0.6rem 1.25rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s ease;
+}
+
+.createBtn:hover {
+  background: #333;
+}
+
+.tableWrapper {
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #eaeaea;
+  overflow-x: auto;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 400px;
+}
+
+.table th, .table td {
+  padding: 1rem 1.5rem;
+  text-align: left;
+  border-bottom: 1px solid #eaeaea;
+}
+
+.table th {
+  background: #fcfcfc;
+  font-weight: 600;
+  color: #444;
+  font-size: 0.875rem;
+}
+
+.table td {
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.actions-header {
+  width: 160px;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.editBtn, .deleteBtn {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid #ddd;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.editBtn:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+.deleteBtn {
+  color: #d32f2f;
+}
+
+.deleteBtn:hover {
+  background: #ffebee;
+  border-color: #ffcdd2;
+}
+
+.empty-state {
+  text-align: center !important;
+  color: #777 !important;
+  padding: 2rem !important;
+}
+
+@media (max-width: 600px) {
+  .container {
+    margin: 1.5rem auto;
+    padding: 0 1rem;
+  }
+  
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .createBtn {
+    width: 100%;
+  }
+}

@@ -18,7 +18,7 @@ export default function Login() {
     try {
       const response = await login(data);
 
-      const token = response?.token || 'autenticado';
+      const token = response?.access_token || response?.token || 'autenticado';
       document.cookie = `auth-token=${token}; path=/; max-age=86400`;
 
       Swal.fire({

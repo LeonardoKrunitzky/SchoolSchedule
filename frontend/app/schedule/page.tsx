@@ -32,7 +32,12 @@ interface TeacherBlock {
   durationCols: number;
   timeText: string;
   observacao?: string;
+  is_fixed?: boolean;
 }
+
+type ExtendedScheduleRecord = ScheduleRecord & {
+  is_fixed?: boolean;
+};
 
 const DIAS = [
   { label: "Segunda", value: 1 },
@@ -62,6 +67,7 @@ export default function Schedule() {
   const [teacherColors, setTeacherColors] = useState<Record<string, string>>({});
   const [blocks, setBlocks] = useState<Record<number, TeacherBlock[]>>({});
   const [editingBlock, setEditingBlock] = useState<TeacherBlock | null>(null);
+  const [isClearing, setIsClearing] = useState<boolean>(false);
 
   const loadScheduleData = async () => {
     try {
@@ -89,7 +95,7 @@ export default function Schedule() {
 
       const groupedBlocks: Record<number, TeacherBlock[]> = {};
 
-      schedulesData.forEach((item: ScheduleRecord) => {
+      (schedulesData as ExtendedScheduleRecord[]).forEach((item) => {
         const start = formatTime(item.start_time);
         const end = formatTime(item.end_time);
         const startIndex = Math.max(0, TIMES.indexOf(start));
@@ -109,6 +115,7 @@ export default function Schedule() {
           durationCols: endIndex - startIndex,
           timeText: `${start} às ${end}`,
           observacao: item.observation || "",
+          is_fixed: Boolean(item.is_fixed),
         };
 
         if (!groupedBlocks[item.weekday]) {
@@ -127,17 +134,84 @@ export default function Schedule() {
     loadScheduleData();
   }, []);
 
+  // 1. Limpa os blocos do dia atual que NÃO possuem is_fixed
+  const handleClearDay = async () => {
+    const dayBlocks = blocks[activeDay] || [];
+    const blocksToRemove = dayBlocks.filter((b) => !b.is_fixed);
+
+    if (blocksToRemove.length === 0) {
+      alert("Não há horários não fixos para limpar neste dia.");
+      return;
+    }
+
+    const activeDayName = DIAS.find((d) => d.value === activeDay)?.label || "selecionado";
+    if (!window.confirm(`Deseja limpar os horários de ${activeDayName} (mantendo os fixos)?`)) {
+      return;
+    }
+
+    setIsClearing(true);
+    try {
+      // Remove também no banco para o dia atual (remova a linha abaixo se quiser limpar apenas visualmente da tela)
+      await Promise.all(blocksToRemove.map((b) => deleteSchedule(b.id)));
+
+      setBlocks((prev) => ({
+        ...prev,
+        [activeDay]: (prev[activeDay] || []).filter((b) => b.is_fixed),
+      }));
+    } catch (error) {
+      console.error("Erro ao limpar o dia:", error);
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  // 2. Limpa do banco TODOS os dias, exceto os blocos com is_fixed
+  const handleClearAllFromDB = async () => {
+    const allBlocks = Object.values(blocks).flat();
+    const blocksToDelete = allBlocks.filter((b) => !b.is_fixed);
+
+    if (blocksToDelete.length === 0) {
+      alert("Não há horários não fixos para remover do banco.");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Tem certeza que deseja excluir do banco ${blocksToDelete.length} horário(s) de TODOS os dias (mantendo apenas os fixos)?`
+      )
+    ) {
+      return;
+    }
+
+    setIsClearing(true);
+    try {
+      await Promise.all(blocksToDelete.map((b) => deleteSchedule(b.id)));
+
+      setBlocks((prev) => {
+        const updated: Record<number, TeacherBlock[]> = {};
+        Object.keys(prev).forEach((dayKey) => {
+          const dayNum = Number(dayKey);
+          updated[dayNum] = (prev[dayNum] || []).filter((b) => b.is_fixed);
+        });
+        return updated;
+      });
+    } catch (error) {
+      console.error("Erro ao limpar horários do banco:", error);
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   const gerarRelatorioPDF = () => {
     const doc = new jsPDF();
     doc.text("Relatório Geral de Horários", 14, 15);
 
-    const tableCols = ["Dia", "Turma", "Professor", "Horário", "Observação"];
+    const tableCols = ["Dia", "Turma", "Professor", "Horário", "Fixo", "Observação"];
     const tableData: any[][] = [];
 
     DIAS.forEach((dia) => {
       const aulasDoDia = blocks[dia.value] || [];
-      
-      // Ordena por turma e depois por horário
+
       const aulasOrdenadas = [...aulasDoDia].sort((a, b) => {
         if (a.rowId === b.rowId) return a.startCol - b.startCol;
         return a.rowId.localeCompare(b.rowId);
@@ -149,6 +223,7 @@ export default function Schedule() {
           aula.rowId,
           aula.teacherName,
           aula.timeText,
+          aula.is_fixed ? "Sim" : "Não",
           aula.observacao || "-",
         ]);
       });
@@ -158,9 +233,9 @@ export default function Schedule() {
       head: [tableCols],
       body: tableData,
       startY: 25,
-      theme: 'grid',
+      theme: "grid",
       styles: { fontSize: 10, cellPadding: 3 },
-      headStyles: { fillColor: [41, 128, 185] },
+      headStyles: { fillColor: [15, 23, 42] },
     });
 
     doc.save("relatorio_horarios.pdf");
@@ -195,13 +270,13 @@ export default function Schedule() {
       const endTime = TIMES[Math.min(colIndex + 4, TIMES.length - 1)] || "09:00";
 
       try {
-        const created = await createSchedule({
+        const created = (await createSchedule({
           user_id: userId,
           class_id: turma.id,
           weekday: activeDay,
           start_time: startTime,
           end_time: endTime,
-        });
+        })) as ExtendedScheduleRecord;
 
         const newBlock: TeacherBlock = {
           id: String(created.id),
@@ -214,6 +289,7 @@ export default function Schedule() {
           durationCols: 4,
           timeText: `${startTime} às ${endTime}`,
           observacao: "",
+          is_fixed: Boolean(created.is_fixed),
         };
 
         setBlocks((prev) => ({
@@ -242,7 +318,8 @@ export default function Schedule() {
           weekday: activeDay,
           start_time: startTime,
           end_time: endTime,
-        });
+          ...(block.is_fixed !== undefined ? { is_fixed: block.is_fixed } : {}),
+        } as any);
 
         setBlocks((prev) => ({
           ...prev,
@@ -270,10 +347,12 @@ export default function Schedule() {
     const startSelect = document.getElementById("edit-start") as HTMLSelectElement;
     const endSelect = document.getElementById("edit-end") as HTMLSelectElement;
     const obsTextarea = document.getElementById("edit-obs") as HTMLTextAreaElement;
+    const fixedCheckbox = document.getElementById("edit-fixed") as HTMLInputElement;
 
     const startIndex = TIMES.indexOf(startSelect.value);
     const endIndex = TIMES.indexOf(endSelect.value);
     const newObservacao = obsTextarea ? obsTextarea.value : "";
+    const newIsFixed = fixedCheckbox ? fixedCheckbox.checked : false;
 
     if (startIndex >= endIndex) {
       alert("O horário de fim deve ser depois do início.");
@@ -288,7 +367,8 @@ export default function Schedule() {
         start_time: startSelect.value,
         end_time: endSelect.value,
         observation: newObservacao,
-      });
+        is_fixed: newIsFixed,
+      } as any);
 
       setBlocks((prev) => ({
         ...prev,
@@ -300,6 +380,7 @@ export default function Schedule() {
                 durationCols: endIndex - startIndex,
                 timeText: `${startSelect.value} às ${endSelect.value}`,
                 observacao: newObservacao,
+                is_fixed: newIsFixed,
               }
             : b
         ),
@@ -334,9 +415,7 @@ export default function Schedule() {
       <Navbar />
       <div className="layout-wrapper">
         <main className="gantt-main">
-          
-          {/* Header com as abas e botão de PDF lado a lado */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <div className="top-bar">
             <div className="tabs">
               {DIAS.map((dia) => (
                 <button
@@ -348,22 +427,30 @@ export default function Schedule() {
                 </button>
               ))}
             </div>
-            
-            <button 
-              onClick={gerarRelatorioPDF} 
-              style={{
-                backgroundColor: "#2980b9",
-                color: "#fff",
-                border: "none",
-                padding: "8px 16px",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontWeight: "bold",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
-              }}
-            >
-              📄 Gerar Relatório PDF
-            </button>
+
+            <div className="top-actions">
+              <button
+                onClick={handleClearDay}
+                disabled={isClearing}
+                className="btn-action btn-clear-day"
+                title="Remove os horários do dia atual, mantendo os fixos"
+              >
+                Limpar Dia (Exceto Fixos)
+              </button>
+
+              <button
+                onClick={handleClearAllFromDB}
+                disabled={isClearing}
+                className="btn-action btn-clear-all"
+                title="Remove do banco os horários de todos os dias, mantendo os fixos"
+              >
+                Limpar Banco (Todos os Dias)
+              </button>
+
+              <button onClick={gerarRelatorioPDF} className="btn-action btn-pdf">
+                Gerar Relatório PDF
+              </button>
+            </div>
           </div>
 
           <div className="gantt-board">
@@ -398,7 +485,7 @@ export default function Schedule() {
                       .map((block) => (
                         <div
                           key={block.id}
-                          className="gantt-block"
+                          className={`gantt-block ${block.is_fixed ? "is-fixed" : ""}`}
                           draggable
                           onDragStart={(e) => handleGridDragStart(e, block.id)}
                           onClick={() => setEditingBlock(block)}
@@ -407,7 +494,10 @@ export default function Schedule() {
                             gridColumn: `${block.startCol} / span ${block.durationCols}`,
                           }}
                         >
-                          <strong>{block.teacherName}</strong>
+                          <strong>
+                            {block.is_fixed && <span className="fixed-pin">📌 </span>}
+                            {block.teacherName}
+                          </strong>
                           <span>{block.timeText}</span>
                         </div>
                       ))}
@@ -443,7 +533,7 @@ export default function Schedule() {
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <h3>Editar Aula: {editingBlock.teacherName}</h3>
               <p className="modal-subtitle">
-                Turma {editingBlock.rowId} - {activeDayLabel}
+                Turma {editingBlock.rowId} • {activeDayLabel}
               </p>
 
               <div className="modal-form">
@@ -451,7 +541,9 @@ export default function Schedule() {
                   <label>Início</label>
                   <select id="edit-start" defaultValue={editingBlock.timeText.split(" às ")[0]}>
                     {TIMES.slice(0, -1).map((t) => (
-                      <option key={t} value={t}>{t}</option>
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -459,7 +551,9 @@ export default function Schedule() {
                   <label>Fim</label>
                   <select id="edit-end" defaultValue={editingBlock.timeText.split(" às ")[1]}>
                     {TIMES.slice(1).map((t) => (
-                      <option key={t} value={t}>{t}</option>
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -472,6 +566,17 @@ export default function Schedule() {
                     placeholder="Ex: Trazer material para laboratório..."
                     rows={3}
                   />
+                </div>
+
+                <div className="input-group full-width">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      id="edit-fixed"
+                      defaultChecked={Boolean(editingBlock.is_fixed)}
+                    />
+                    <span>Fixar horário (não será removido ao limpar grade)</span>
+                  </label>
                 </div>
               </div>
 

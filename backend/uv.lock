@@ -106,7 +106,7 @@ requires-dist = [
     { name = "bcrypt", specifier = ">=5.0.0" },
     { name = "fastapi", extras = ["all"], specifier = ">=0.162.0" },
     { name = "passlib", specifier = ">=1.7.4" },
-    { name = "pyjwt", specifier = ">=2.15.1" },
+    { name = "pyjwt", specifier = ">=2.8.0" },
     { name = "python-dotenv", specifier = ">=1.2.4" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.1.6" },
 ]
